@@ -1,16 +1,17 @@
 package com.gymapp.ms_gamificacion.service;
 
+import com.gymapp.ms_gamificacion.client.MiembroClient;
+import com.gymapp.ms_gamificacion.client.NotificacionClient;
 import com.gymapp.ms_gamificacion.dto.EventoGamificacionDTO;
 import com.gymapp.ms_gamificacion.dto.PerfilGamificacionDTO;
 import com.gymapp.ms_gamificacion.exception.BusinessException;
 import com.gymapp.ms_gamificacion.model.PerfilGamificacion;
 import com.gymapp.ms_gamificacion.repository.PerfilGamificacionRepository;
+import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -22,17 +23,16 @@ import java.util.stream.Collectors;
 public class GamificacionServiceImpl implements GamificacionService {
 
     private final PerfilGamificacionRepository perfilRepo;
-    private final RestTemplate restTemplate;
 
-    @Value("${ms.miembros.url}")
-    private String miembrosUrl;
 
-    @Value("${ms.notificaciones.url}")
-    private String notificacionesUrl;
+    private final MiembroClient miembroClient;
+    private final NotificacionClient notificacionClient;
 
     @Override
     @Transactional
     public PerfilGamificacionDTO procesarEvento(EventoGamificacionDTO dto) {
+        log.info("Procesando evento de gamificación '{}' para el miembro ID: {}", dto.getAccion(), dto.getMiembroId());
+
         PerfilGamificacion perfil = perfilRepo.findByMiembroId(dto.getMiembroId())
                 .orElseGet(() -> crearPerfilNuevo(dto.getMiembroId()));
 
@@ -40,12 +40,15 @@ public class GamificacionServiceImpl implements GamificacionService {
         int puntosGanados = (int) (dto.getPuntosBase() * multiplicador);
 
         perfil.setPuntosTotales(perfil.getPuntosTotales() + puntosGanados);
+        log.info("Miembro {} ganó {} puntos (Multiplicador: {}x). Total acumulado: {}",
+                dto.getMiembroId(), puntosGanados, multiplicador, perfil.getPuntosTotales());
 
-        // Lógica de Nivel: 1 nivel cada 500 puntos
+
         int nuevoNivel = (perfil.getPuntosTotales() / 500) + 1;
 
         if (nuevoNivel > perfil.getNivel()) {
             perfil.setNivel(nuevoNivel);
+            log.info("¡Level Up! El miembro {} subió al nivel {}", dto.getMiembroId(), nuevoNivel);
             enviarNotificacion(dto.getMiembroId(), "¡Subiste de Nivel!",
                     "Felicidades, ahora eres nivel " + nuevoNivel);
         }
@@ -58,17 +61,43 @@ public class GamificacionServiceImpl implements GamificacionService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public PerfilGamificacionDTO obtenerPerfil(Long miembroId) {
+        log.info("Consultando perfil de gamificación para el miembro ID: {}", miembroId);
         PerfilGamificacion perfil = perfilRepo.findByMiembroId(miembroId)
-                .orElseThrow(() -> new BusinessException("Perfil no encontrado"));
+                .orElseThrow(() -> new BusinessException("Perfil de gamificación no encontrado para el miembro especificado."));
         return construirDTOCompleto(perfil);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<PerfilGamificacionDTO> obtenerRankingTop10() {
+        log.info("Generando ranking Top 10 de miembros");
         return perfilRepo.findTop10ByOrderByPuntosTotalesDesc().stream()
                 .map(this::construirDTOCompleto)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public Map<String, Object> calcularProgreso(Long miembroId) {
+        log.info("Calculando progreso detallado para el miembro ID: {}", miembroId);
+        return new HashMap<>();
+    }
+
+    @Override
+    public List<Map<String, String>> obtenerCatalogoInsignias() {
+        return List.of(Map.of("codigo", "COMPRADOR", "nombre", "Comprador"));
+    }
+
+    @Override
+    @Transactional
+    public PerfilGamificacionDTO ajusteManual(Long miembroId, int cantidadPuntos) {
+        log.info("Ajuste manual de puntos para el miembro ID: {}. Variación: {}", miembroId, cantidadPuntos);
+        PerfilGamificacion perfil = perfilRepo.findByMiembroId(miembroId)
+                .orElseThrow(() -> new BusinessException("No se puede ajustar puntos: Perfil no encontrado."));
+
+        perfil.setPuntosTotales(perfil.getPuntosTotales() + cantidadPuntos);
+        return construirDTOCompleto(perfilRepo.save(perfil));
     }
 
 
@@ -76,7 +105,6 @@ public class GamificacionServiceImpl implements GamificacionService {
     private PerfilGamificacionDTO construirDTOCompleto(PerfilGamificacion perfil) {
         int puntos = perfil.getPuntosTotales();
         int nivel = perfil.getNivel();
-        int puntosSiguienteNivel = nivel * 500;
         int puntosEnNivelActual = puntos % 500;
         double progreso = (puntosEnNivelActual / 500.0) * 100;
 
@@ -115,38 +143,22 @@ public class GamificacionServiceImpl implements GamificacionService {
 
         if (!nuevaInsignia.isEmpty()) {
             perfil.setInsigniasCodigos(codigos + nuevaInsignia + ",");
+            log.info("Nueva insignia desbloqueada para el miembro {}: {}", perfil.getMiembroId(), nuevaInsignia);
             enviarNotificacion(perfil.getMiembroId(), "Nueva Insignia", "Ganaste: " + nuevaInsignia);
         }
-    }
-
-
-
-    @Override
-    public Map<String, Object> calcularProgreso(Long miembroId) {
-        return new HashMap<>();
-    }
-
-    @Override
-    public List<Map<String, String>> obtenerCatalogoInsignias() {
-        return List.of(Map.of("codigo", "COMPRADOR", "nombre", "Comprador"));
-    }
-
-    @Override
-    @Transactional
-    public PerfilGamificacionDTO ajusteManual(Long miembroId, int cantidadPuntos) {
-        PerfilGamificacion perfil = perfilRepo.findByMiembroId(miembroId).orElseThrow();
-        perfil.setPuntosTotales(perfil.getPuntosTotales() + cantidadPuntos);
-        return construirDTOCompleto(perfilRepo.save(perfil));
     }
 
     private void enviarNotificacion(Long miembroId, String titulo, String mensaje) {
         try {
             Map<String, Object> req = Map.of("miembroId", miembroId, "titulo", titulo, "mensaje", mensaje);
-            restTemplate.postForObject(notificacionesUrl + "/api/notificaciones", req, Object.class);
-        } catch (Exception e) { log.error("Error notificaciones"); }
+            notificacionClient.enviarNotificacion(req);
+        } catch (Exception e) {
+            log.error("Fallo al enviar notificación de gamificación al miembro {}. Detalle: {}", miembroId, e.getMessage());
+        }
     }
 
     private PerfilGamificacion crearPerfilNuevo(Long miembroId) {
+        log.info("Creando nuevo perfil de gamificación base para el miembro ID: {}", miembroId);
         PerfilGamificacion p = new PerfilGamificacion();
         p.setMiembroId(miembroId);
         p.setNivel(1);
@@ -157,8 +169,11 @@ public class GamificacionServiceImpl implements GamificacionService {
 
     private double obtenerMultiplicadorPorPlan(Long miembroId) {
         try {
-            String plan = restTemplate.getForObject(miembrosUrl + "/api/miembros/plan/" + miembroId, String.class);
+            String plan = miembroClient.obtenerPlan(miembroId);
             return "VIP".equalsIgnoreCase(plan) ? 1.5 : 1.0;
-        } catch (Exception e) { return 1.0; }
+        } catch (FeignException e) {
+            log.warn("No se pudo obtener el plan del miembro {} desde MS-MIEMBROS. Se aplicará multiplicador base 1.0", miembroId);
+            return 1.0;
+        }
     }
 }
