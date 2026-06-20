@@ -176,4 +176,35 @@ public class GamificacionServiceImpl implements GamificacionService {
             return 1.0;
         }
     }
+    @Override
+    @Transactional(readOnly = true)
+    public List<PerfilGamificacionDTO> reportePorNivel(int nivel) {
+        return perfilRepo.findByNivel(nivel).stream().map(this::construirDTOCompleto).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long reporteConteoPorNivel(int nivel) {
+        return perfilRepo.countByNivel(nivel);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PerfilGamificacionDTO> reporteActividadReciente() {
+        LocalDateTime limite = LocalDateTime.now().minusDays(7);
+        return perfilRepo.findActivosRecientemente(limite).stream().map(this::construirDTOCompleto).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PerfilGamificacionDTO> reportePorInsignia(String insignia) {
+        return perfilRepo.buscarPorInsignia(insignia).stream().map(this::construirDTOCompleto).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Double reportePromedioPuntos() {
+        Double promedio = perfilRepo.calcularPromedioPuntosGlobal();
+        return promedio != null ? Math.round(promedio * 100.0) / 100.0 : 0.0;
+    }
 }
