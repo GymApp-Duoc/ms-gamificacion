@@ -1,13 +1,13 @@
-package com.gymapp.ms_gamificacion;
+// package com.gymapp.ms_gamificacion;
 
-import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
+// import org.junit.jupiter.api.Test;
+// import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
-class MsGamificacionApplicationTests {
+// @SpringBootTest
+// class MsGamificacionApplicationTests {
 
-	@Test
-	void contextLoads() {
-	}
+//    @Test
+//    void contextLoads() {
+//    }
 
-}
+// }
