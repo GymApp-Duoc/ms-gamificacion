@@ -5,13 +5,15 @@ spring:
   application:
     name: ms-gamificacion
   datasource:
-    url: jdbc:mysql://localhost:3306/db_gym_gamificacion?createDatabaseIfNotExist=true&serverTimezone=UTC
+
+    url: jdbc:mysql://host.docker.internal:3307/db_gym_gamificacion?createDatabaseIfNotExist=true&serverTimezone=UTC
     username: root
     password:
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
-      ddl-auto: none
+
+      ddl-auto: update
     database-platform: org.hibernate.dialect.MySQLDialect
     show-sql: true
   flyway:
@@ -20,21 +22,20 @@ spring:
 
 eureka:
   client:
-    serviceUrl:
-      defaultZone: http://localhost:8761/eureka/
+    service-url:
+      defaultZone: http://host.docker.internal:8761/eureka/
   instance:
     prefer-ip-address: true
 
 ms:
   miembros:
-    url: http://localhost:8083
+    url: http://host.docker.internal:8083
   notificaciones:
-    url: http://localhost:8091
+    url: http://host.docker.internal:8091
 
 jwt:
   secret: TXV5TGdyYVNlZ3VyYVBhcmFHeW1TeW5jMjAyNkNvbnRyYXNlbmE=
 
-# Swagger
 springdoc:
   api-docs:
     path: /api-docs
