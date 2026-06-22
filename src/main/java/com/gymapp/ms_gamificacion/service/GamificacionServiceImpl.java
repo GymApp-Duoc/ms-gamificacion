@@ -81,17 +81,7 @@ public class GamificacionServiceImpl implements GamificacionService {
     @Override
     public Map<String, Object> calcularProgreso(Long miembroId) {
         log.info("Calculando progreso detallado para el miembro ID: {}", miembroId);
-
-        Map<String, Object> progreso = new HashMap<>();
-
-        progreso.put("miembroId", miembroId);
-        progreso.put("nivelActual", 2);
-        progreso.put("puntosActuales", 250);
-        progreso.put("porcentaje", 45.5);
-        progreso.put("puntosFaltantes", 150);
-        progreso.put("mensaje", "¡Sigue entrenando! Te falta muy poco para el Nivel 3.");
-
-        return progreso;
+        return new HashMap<>();
     }
 
     @Override
